@@ -1,0 +1,68 @@
+Versions
+
+KSQL version does not need to match Kafka closely
+KSQL server/client need to match exactly (v5.x client won't connect to v4.x server at all, KSQL syntax is different between 5.3 and 5.4)
+Support for nested JSON (structs) only introduced in KSQL 5.0
+
+To read from beginning of topic: SET 'auto.offset.reset' = 'earliest';
+
+Example:
+ksql> CREATE STREAM teststream (objectId VARCHAR, candid BIGINT, candidate STRUCT<jd DOUBLE, fid INT, magpsf DOUBLE, dec DOUBLE, ra DOUBLE>) WITH (kafka_topic='ztf_20200114_programid1_json', value_format='JSON');
+
+ Message        
+----------------
+ Stream created 
+----------------
+ksql> SELECT candidate->ra,candidate->dec,candidate->jd,candidate->fid,candidate->magpsf FROM teststream WHERE objectId='ZTF20aafdaiv' EMIT CHANGES;
++---------------------------------------------+---------------------------------------------+---------------------------------------------+---------------------------------------------+---------------------------------------------+
+|CANDIDATE__RA                                |CANDIDATE__DEC                               |CANDIDATE__JD                                |CANDIDATE__FID                               |CANDIDATE__MAGPSF                            |
++---------------------------------------------+---------------------------------------------+---------------------------------------------+---------------------------------------------+---------------------------------------------+
+|21.4301042                                   |-0.1224351                                   |2458862.6039931                              |2                                            |19.94036865234375                            |
+^CQuery terminated
+
+
+
+Examples on active query stream:
+
+ksql> CREATE STREAM teststream (objectId VARCHAR, ramean DOUBLE, decmean DOUBLE, mjdmin DOUBLE, mjdmax DOUBLE, magrmin DOUBLE, latestrmag DOUBLE, classification VARCHAR, score VARCHAR) WITH (kafka_topic='2SN-likecandidates', value_format='JSON');
+
+ Message        
+----------------
+ Stream created 
+----------------
+ksql> SELECT * FROM teststream WHERE classification='SN' AND ramean > 215 AND ramean < 220  AND decmean > 75 AND decmean < 80 EMIT CHANGES;
++------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+
+|ROWTIME           |ROWKEY            |OBJECTID          |RAMEAN            |DECMEAN           |MJDMIN            |MJDMAX            |MAGRMIN           |LATESTRMAG        |CLASSIFICATION    |SCORE             |
++------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+
+|1579434266420     |null              |ZTF20aadcdzj      |219.283945995     |79.94889376       |58850.53703700006 |58867.45336809987 |18.892            |18.9792           |SN                |Not Near PS1 star |
+|1579435142352     |null              |ZTF20aadcdzj      |219.28394712380955|79.9488929952381  |58850.53703700006 |58867.48990740022 |18.892            |19.0336           |SN                |Not Near PS1 star |
+|1579803073043     |null              |ZTF20aadcdzj      |219.28392438260872|79.94889672173913 |58850.53703700006 |58871.5284258998  |18.892            |19.1958           |SN                |Not Near PS1 star |
+|1579874718652     |null              |ZTF20aadcdzj      |219.28391969166668|79.94889701666666 |58850.53703700006 |58872.56950230012 |18.892            |19.1625           |SN                |Not Near PS1 star |
+^CQuery terminated
+
+Example persistent stream (creates a new topic on server):
+
+ksql> CREATE STREAM sn_test_stream AS SELECT * FROM teststream WHERE classification='SN' EMIT CHANGES;
+
+ Message                                                                                          
+--------------------------------------------------------------------------------------------------
+ Stream SN_TEST_STREAM created and running. Created by query with query ID: CSAS_SN_TEST_STREAM_1 
+--------------------------------------------------------------------------------------------------
+ksql> show topics;
+
+ Kafka Topic                            | Partitions | Partition Replicas 
+--------------------------------------------------------------------------
+ 2CVsinoutburst                         | 1          | 1                  
+ 2SN-likecandidates                     | 1          | 1                  
+ 2SN-likethings                         | 1          | 1                  
+ 2TNScrossmatch                         | 1          | 1                  
+ 42AllnucleartransientsandTDEcandidates | 1          | 1                  
+ 42SN-likecandidatesinlast14days        | 1          | 1                  
+ SN_TEST_STREAM                         | 1          | 1                  
+ test5                                  | 1          | 1                  
+--------------------------------------------------------------------------
+
+~$ kafkacat -C -b lasair-dev.roe.ac.uk:9092 -t SN_TEST_STREAM -o beginning -c 1
+{"OBJECTID":"ZTF18acbwaxk","RAMEAN":186.55033410652817,"DECMEAN":58.31412679436201,"MJDMIN":58586.18103010021,"MJDMAX":58867.43031249987,"MAGRMIN":15.6157,"LATESTRMAG":18.9523,"CLASSIFICATION":"SN","SCORE":"Not Near PS1 star"}
+
+
