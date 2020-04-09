@@ -5,5 +5,5 @@ apt-get install python3-venv python3-dev
 python3 -m venv swift
 cd swift
 . bin/activate
-pip install python-openstackclient
+pip install python-openstackclient python-keystoneclient python-swiftclient
 
