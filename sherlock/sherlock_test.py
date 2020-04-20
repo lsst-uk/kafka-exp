@@ -11,6 +11,7 @@ from confluent_kafka import Producer
 import sys
 import fastavro
 from io import BytesIO
+import json
 
 settings = {
     #'bootstrap.servers': '192.41.108.22:9092',
@@ -44,12 +45,13 @@ def ingest(maxmsgs):
                 decoded_msg = fastavro.reader(BytesIO(msg.value()))
                 print ("Decoded message")
                 for alert in decoded_msg:
+                    # remove images
                     alert.pop('cutoutDifference')
                     alert.pop('cutoutTemplate')
                     alert.pop('cutoutScience')
-                    print (str(alert))
-
-    #            #p.produce(dest, value=msg.value())
+                    #print (str(alert))
+                    p.produce(input_topic, value=json.dumps(alert))
+                    print ("Produced message on topic " + input_topic)
     #            o = msg.offset()
             else:
                 print ("Error")
@@ -60,35 +62,33 @@ def ingest(maxmsgs):
     return
 
 def output(maxmsgs):
-    print ("do output")    
+    print ("Getting output")    
+    c = Consumer(settings)
+    c.subscribe([output_topic])
+    n = 0
+    try:
+        while n < maxmsgs:
+            msg = c.poll(0.1)
+            if msg is None:
+                continue
+            elif not msg.error():
+                print ("Got message with offset " + str(msg.offset()))
+                print (msg.value())
+                alert = json.loads(msg.value())
+                print ("-")
+                print ("Got alert name:{} ra:{} dec:{} sum:{}".format(alert.get('name'),alert['candidate']['ra'],alert['candidate']['dec'],alert.get('sum')))
+            else:
+                print ("Error")
+            n += 1
+    finally:
+        c.close()
+    return
 
-#c = Consumer(settings)
-#p = Producer(settings)
-#c.subscribe([source])
-#n = 0
-#o = -1
-#try:
-#    while n < maxmsgs:
-#        msg = c.poll(0.1)
-#        if msg is None:
-#            continue
-#        elif not msg.error():
-#            print ("Got message with offset " + str(msg.offset()))
-#            #p.produce(dest, value=msg.value())
-#            o = msg.offset()
-#        else:
-#            print ("Error")
-#        n += 1
-#finally:
-#    c.close()
-#    p.flush()
-#
-#print ("Copied {:d} messages up to offset {:d}".format(n,o))
 
 if __name__ == '__main__':
-    if (len(sys.argv) > 1):
+    try:
         n = int(sys.argv[1])
-    else:
+    except IndexError:
         n = 10
     ingest(n)
     output(n)

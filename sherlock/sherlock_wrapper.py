@@ -5,6 +5,8 @@
 from confluent_kafka import Consumer, KafkaError
 from confluent_kafka import Producer
 import sys
+from mock_sherlock_driver import run_sherlock
+import json
 
 settings = {
     #'bootstrap.servers': '192.41.108.22:9092',
@@ -16,35 +18,54 @@ settings = {
     'default.topic.config': {'auto.offset.reset': 'smallest'}
 }
 
-if (len(sys.argv) < 3):
-    print ("Usage:\n  python3 sherlock_wrapper.py <source topic> <destination topic>")
-    sys.exit(0)
+maxmsgs = 1
 
-source = sys.argv[1]
-dest = sys.argv[2]
+def wrapper(input_topic, output_topic):
+    print("Input topic is {}, output topic is {}".format(input_topic,output_topic))
+    c = Consumer(settings)
+    p = Producer(settings)
+    c.subscribe([input_topic])
+    n = 0
+    try:
+        while n < maxmsgs:
+            msg = c.poll(0.1)
+            if msg is None:
+                continue
+            elif not msg.error():
+                print ("Got message with offset " + str(msg.offset()))
+                alert = json.loads(msg.value())
+                # sherlock expects a name attribute
+                # if we don't have one then make it up
+                alert['name'] = alert.get('name', alert.get('objectId', alert.get('candid', 'XXX12345')))
+                #print (msg.value())
+                query = []
+                query.append({
+                    'name': alert['name'],
+                    'ra': alert['candidate']['ra'],
+                    'dec': alert['candidate']['dec']
+                    })
+                response_str = run_sherlock(json.dumps(query))
+                print ("Sherlock response: " + response_str)
+                response = json.loads(response_str)
+                alert['sum'] = response[alert['name']]['sum']
+                p.produce(output_topic, value=json.dumps(alert))
+                print ("Produced output on " + output_topic)
+            else:
+                print ("Error")
+            n += 1
+    finally:
+        c.close()
+        p.flush()
+    return
 
-#source = 'ztf_20200404_programid1'
-#dest = 'ztf_test'
+if __name__ == '__main__':
+    try:
+        input_topic = sys.argv[1]
+    except IndexError:
+        input_topic = 'dev_sherlock_test_input'
+    try:
+        output_topic = sys.argv[2]
+    except IndexError: 
+        output_topic = 'dev_sherlock_test_output'
+    wrapper(input_topic, output_topic)
 
-c = Consumer(settings)
-p = Producer(settings)
-c.subscribe([source])
-n = 0
-o = -1
-try:
-    while n < maxmsgs:
-        msg = c.poll(0.1)
-        if msg is None:
-            continue
-        elif not msg.error():
-            print ("Got message with offset " + str(msg.offset()))
-            #p.produce(dest, value=msg.value())
-            o = msg.offset()
-        else:
-            print ("Error")
-        n += 1
-finally:
-    c.close()
-    p.flush()
-
-print ("Copied {:d} messages up to offset {:d}".format(n,o))
