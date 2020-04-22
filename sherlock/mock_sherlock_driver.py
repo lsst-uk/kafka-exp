@@ -22,8 +22,8 @@ def run_sherlock(json_request):
             except:
                 continue
             response[name] = {}
-            response[name]['ra'] = ra
-            response[name]['dec'] = dec
+            #response[name]['ra'] = ra
+            #response[name]['dec'] = dec
             response[name]['sum'] = float(ra) + float(dec)
             sleep(delay/1000.0)
     except:

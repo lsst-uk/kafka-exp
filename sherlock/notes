@@ -1,0 +1,8 @@
+environment
+-----------
+
+apt-get install python3-venv python3-dev
+python3 -m venv sherlock
+cd sherlock
+. bin/activate
+pip install confluent-kafka fastavro

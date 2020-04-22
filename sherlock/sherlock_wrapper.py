@@ -1,6 +1,10 @@
 # Kafka wrapper for Sherlock
+#
+# Reads alerts from an input topic, extracts ra and dec, gets sherlock
+# output, adds that output back to the alert and writes to output topic 
+#
 # Usage:
-#   python3 sherlock_wrapper.py <source topic> <destination topic>
+#   python3 sherlock_wrapper.py <input topic> <output topic>
 
 from confluent_kafka import Consumer, KafkaError
 from confluent_kafka import Producer
@@ -18,7 +22,8 @@ settings = {
     'default.topic.config': {'auto.offset.reset': 'smallest'}
 }
 
-maxmsgs = 1
+# maximum number of messages to process
+maxmsgs = 10
 
 def wrapper(input_topic, output_topic):
     print("Input topic is {}, output topic is {}".format(input_topic,output_topic))
@@ -47,11 +52,12 @@ def wrapper(input_topic, output_topic):
                 response_str = run_sherlock(json.dumps(query))
                 print ("Sherlock response: " + response_str)
                 response = json.loads(response_str)
-                alert['sum'] = response[alert['name']]['sum']
+                for item in response[alert['name']]:
+                    alert.append(item)
                 p.produce(output_topic, value=json.dumps(alert))
                 print ("Produced output on " + output_topic)
             else:
-                print ("Error")
+                print ("Error: " + msg)
             n += 1
     finally:
         c.close()
