@@ -23,7 +23,6 @@ settings = {
     'default.topic.config': {'auto.offset.reset': 'smallest'}
 }
 
-#source = 'ztf_20200404_programid1'
 source_topic = 'ztf_test'
 input_topic = 'dev_sherlock_test_input'
 output_topic = 'dev_sherlock_test_output'
@@ -34,9 +33,9 @@ def ingest(maxmsgs):
     p = Producer(settings)
     c.subscribe([source_topic])
     n = 0
-    #o = -1
     try:
         while n < maxmsgs:
+            # poll for messages
             msg = c.poll(0.1)
             if msg is None:
                 continue
@@ -52,7 +51,6 @@ def ingest(maxmsgs):
                     #print (str(alert))
                     p.produce(input_topic, value=json.dumps(alert))
                     print ("Produced message on topic " + input_topic)
-    #            o = msg.offset()
             else:
                 print ("Error")
             n += 1
@@ -68,17 +66,17 @@ def output(maxmsgs):
     n = 0
     try:
         while n < maxmsgs:
+            # poll for messages
             msg = c.poll(0.1)
             if msg is None:
                 continue
             elif not msg.error():
                 print ("Got message with offset " + str(msg.offset()))
-                print (msg.value())
+                #print (msg.value())
                 alert = json.loads(msg.value())
-                print ("-")
-                print ("Got alert name:{} ra:{} dec:{} sum:{}".format(alert.get('name'),alert['candidate']['ra'],alert['candidate']['dec'],alert.get('sum')))
+                print ("Got alert ra:{} dec:{} sum:{}".format(alert['candidate']['ra'],alert['candidate']['dec'],alert.get('sum')))
             else:
-                print ("Error")
+                print ("Error:" + str(msg))
             n += 1
     finally:
         c.close()

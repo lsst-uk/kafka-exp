@@ -33,31 +33,35 @@ def wrapper(input_topic, output_topic):
     n = 0
     try:
         while n < maxmsgs:
+            # Poll for messages
             msg = c.poll(0.1)
             if msg is None:
                 continue
             elif not msg.error():
                 print ("Got message with offset " + str(msg.offset()))
                 alert = json.loads(msg.value())
+                
                 # sherlock expects a name attribute
                 # if we don't have one then make it up
-                alert['name'] = alert.get('name', alert.get('objectId', alert.get('candid', 'XXX12345')))
-                #print (msg.value())
-                query = []
-                query.append({
-                    'name': alert['name'],
+                name = alert.get('name', alert.get('objectId', alert.get('candid', 'XXX12345')))
+                
+                # construct the Sherlock query 
+                query = [{
+                    'name': name,
                     'ra': alert['candidate']['ra'],
                     'dec': alert['candidate']['dec']
-                    })
-                response_str = run_sherlock(json.dumps(query))
-                print ("Sherlock response: " + response_str)
-                response = json.loads(response_str)
-                for item in response[alert['name']]:
-                    alert.append(item)
+                    }]
+                # The original Sherlock driver uses json input/output
+                # but we don't really need to do that here
+                response = run_sherlock(request=query, json_output=False)
+                print ("Sherlock response: " + json.dumps(response, indent=2))
+
+                # Add new attributes to alert and republish
+                alert.update(response[name])
                 p.produce(output_topic, value=json.dumps(alert))
                 print ("Produced output on " + output_topic)
             else:
-                print ("Error: " + msg)
+                print ("Error: " + str(msg))
             n += 1
     finally:
         c.close()
